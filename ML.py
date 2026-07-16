@@ -1,0 +1,519 @@
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    balanced_accuracy_score,
+    classification_report,
+    confusion_matrix
+)
+from models.model_zoo import get_models
+from sklearn.base import clone
+
+ROOT = Path(r"C:\Users\park_younguk\Desktop\skin")
+CSV_PATH = ROOT / "lesion_background_ita_lab_features.csv"
+OUT_DIR = ROOT / "ml_results"
+OUT_DIR.mkdir(exist_ok=True)
+
+df = pd.read_csv(CSV_PATH)
+
+severity_order = ["mild", "moderate", "severe", "very severe"]
+df = df[df["severity"].isin(severity_order)].copy()
+
+label_encoder = LabelEncoder()
+y = label_encoder.fit_transform(df["severity"])
+
+print("Class mapping:")
+for i, cls in enumerate(label_encoder.classes_):
+    print(i, "->", cls)
+
+print("\nClass counts:")
+print(df["severity"].value_counts().reindex(severity_order))
+
+feature_groups = {
+
+    # =========================
+    # Lesion raw value only
+    # =========================
+    "lesion_L_only": [
+        "lesion_L_mean",
+    ],
+
+    "lesion_a_only": [
+        "lesion_a_mean",
+    ],
+
+    "lesion_b_only": [
+        "lesion_b_mean",
+    ],
+
+    "lesion_ITA_only": [
+        "lesion_ITA_mean",
+    ],
+
+    # =========================
+    # Background raw value only
+    # =========================
+    "bg_L_only": [
+        "bg_L_mean",
+    ],
+
+    "bg_a_only": [
+        "bg_a_mean",
+    ],
+
+    "bg_b_only": [
+        "bg_b_mean",
+    ],
+
+    "bg_ITA_only": [
+        "bg_ITA_mean",
+    ],
+
+    # =========================
+    # Mean difference only
+    # =========================
+    "delta_L_only": [
+        "delta_L_mean",
+    ],
+
+    "delta_a_only": [
+        "delta_a_mean",
+    ],
+
+    "delta_b_only": [
+        "delta_b_mean",
+    ],
+
+    "delta_ITA_only": [
+        "delta_ITA_mean",
+    ],
+
+    # =========================
+    # Absolute difference only
+    # =========================
+    "abs_delta_L_only": [
+        "abs_delta_L_mean",
+    ],
+
+    "abs_delta_a_only": [
+        "abs_delta_a_mean",
+    ],
+
+    "abs_delta_b_only": [
+        "abs_delta_b_mean",
+    ],
+
+    "abs_delta_ITA_only": [
+        "abs_delta_ITA_mean",
+    ],
+
+    # =========================
+    # Wasserstein distance only
+    # =========================
+    "wd_L_only": [
+        "wasserstein_L",
+    ],
+
+    "wd_a_only": [
+        "wasserstein_a",
+    ],
+
+    "wd_b_only": [
+        "wasserstein_b",
+    ],
+
+    "wd_ITA_only": [
+        "wasserstein_ITA",
+    ],
+
+    # =========================
+    # Grouped feature sets
+    # =========================
+    "lesion_group": [
+        "lesion_L_mean",
+        "lesion_a_mean",
+        "lesion_b_mean",
+        "lesion_ITA_mean",
+    ],
+
+    "background_group": [
+        "bg_L_mean",
+        "bg_a_mean",
+        "bg_b_mean",
+        "bg_ITA_mean",
+    ],
+    
+
+    "delta_group": [    
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+    ],
+
+    "abs_delta_group": [
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+    ],
+
+    "wasserstein_group": [
+        "wasserstein_L",
+        "wasserstein_a",
+        "wasserstein_b",
+        "wasserstein_ITA",
+    ],
+    
+    # =========================
+    #  각 l,a,b등 값에 대한 feature
+    # =========================
+
+    "L_group": [
+        "lesion_L_mean",
+        "bg_L_mean",
+        "delta_L_mean",
+        "abs_delta_L_mean",
+        "wasserstein_L",
+    ],
+
+    "a_group": [
+        "lesion_a_mean",
+        "bg_a_mean",
+        "delta_a_mean",
+        "abs_delta_a_mean",
+        "wasserstein_a",
+    ],
+
+    "b_group": [
+        "lesion_b_mean",
+        "bg_b_mean",
+        "delta_b_mean",
+        "abs_delta_b_mean",
+        "wasserstein_b",
+    ],
+
+    "ITA_group": [
+        "lesion_ITA_mean",
+        "bg_ITA_mean",
+        "delta_ITA_mean",
+        "abs_delta_ITA_mean",
+        "wasserstein_ITA",
+    ],
+
+    # =========================
+    #  조합 feature
+    # =========================
+
+    # 병변 + 배경의 원시 평균값
+    "raw_group": [
+        "lesion_L_mean",
+        "lesion_a_mean",
+        "lesion_b_mean",
+        "lesion_ITA_mean",
+
+        "bg_L_mean",
+        "bg_a_mean",
+        "bg_b_mean",
+        "bg_ITA_mean",
+    ],
+
+    # 방향성 차이 + 절대 차이
+    "mean_difference_group": [
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+    ],
+
+    # 모든 대비 특징
+    "contrast_group": [
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+
+        "wasserstein_L",
+        "wasserstein_a",
+        "wasserstein_b",
+        "wasserstein_ITA",
+    ],
+
+    # 병변값 + 모든 대비
+    "lesion_contrast_group": [
+        "lesion_L_mean",
+        "lesion_a_mean",
+        "lesion_b_mean",
+        "lesion_ITA_mean",
+
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+
+        "wasserstein_L",
+        "wasserstein_a",
+        "wasserstein_b",
+        "wasserstein_ITA",
+    ],
+
+    # 배경값 + 모든 대비
+    "background_contrast_group": [
+        "bg_L_mean",
+        "bg_a_mean",
+        "bg_b_mean",
+        "bg_ITA_mean",
+
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+
+        "wasserstein_L",
+        "wasserstein_a",
+        "wasserstein_b",
+        "wasserstein_ITA",
+    ],
+        
+
+    #모든 전체 특징
+    "all_features_group": [
+        "lesion_L_mean",
+        "lesion_a_mean",
+        "lesion_b_mean",
+        "lesion_ITA_mean",
+
+        "bg_L_mean",
+        "bg_a_mean",
+        "bg_b_mean",
+        "bg_ITA_mean",
+
+        "delta_L_mean",
+        "delta_a_mean",
+        "delta_b_mean",
+        "delta_ITA_mean",
+
+        "abs_delta_L_mean",
+        "abs_delta_a_mean",
+        "abs_delta_b_mean",
+        "abs_delta_ITA_mean",
+
+        "wasserstein_L",
+        "wasserstein_a",
+        "wasserstein_b",
+        "wasserstein_ITA",
+    ],
+}
+
+required_features = sorted({
+    feature
+    for feature_cols in feature_groups.values()
+    for feature in feature_cols
+})
+
+missing_features = [
+    feature
+    for feature in required_features
+    if feature not in df.columns
+]
+
+if missing_features:
+    raise ValueError(
+        "CSV에 다음 feature가 없습니다:\n"
+        + "\n".join(missing_features)
+    )
+
+print("\nNumber of feature groups:", len(feature_groups))
+print("Number of unique features:", len(required_features))
+
+models = get_models(random_state=42)
+
+def evaluate_group(model_name, model, group_name, feature_cols):
+    print("\n" + "=" * 60)
+    print("Model:", model_name)
+    print("Feature group:", group_name)
+    print("Features:", feature_cols)
+
+    model_out_dir = OUT_DIR / model_name
+    model_out_dir.mkdir(exist_ok=True)
+
+    data = df[feature_cols + ["severity"]].dropna().copy()
+
+    class_counts = (
+    data["severity"]
+    .value_counts()
+    .reindex(severity_order, fill_value=0)
+    )
+
+    if (class_counts < 5).any():
+        raise ValueError(
+            f"{model_name} / {group_name}: "
+            f"5-fold CV를 수행하기에는 일부 클래스 표본이 부족합니다.\n"
+            f"{class_counts}"
+        )
+
+    X = data[feature_cols]
+    y_group = label_encoder.transform(data["severity"])
+
+    cv = StratifiedKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=42
+    )
+
+    accs = []
+    macro_f1s = []
+    bal_accs = []
+
+    y_true_all = []
+    y_pred_all = []
+    importance_list = []
+
+    for fold, (train_idx, test_idx) in enumerate(cv.split(X, y_group), start=1):
+        X_train = X.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+        y_train = y_group[train_idx]
+        y_test = y_group[test_idx]
+
+        clf = clone(model)
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+
+        acc = accuracy_score(y_test, y_pred)
+        macro_f1 = f1_score(y_test, y_pred, average="macro", zero_division=0)
+        bal_acc = balanced_accuracy_score(y_test, y_pred)
+
+        accs.append(acc)
+        macro_f1s.append(macro_f1)
+        bal_accs.append(bal_acc)
+
+        y_true_all.extend(y_test)
+        y_pred_all.extend(y_pred)
+
+        if hasattr(clf, "feature_importances_"):
+            importance_list.append(clf.feature_importances_)
+
+        print(
+            f"Fold {fold}: "
+            f"Acc={acc:.4f}, "
+            f"Macro F1={macro_f1:.4f}, "
+            f"Balanced Acc={bal_acc:.4f}"
+        )
+
+    print("\n5-fold CV results:")
+    print(f"Accuracy: {np.mean(accs):.4f} ± {np.std(accs):.4f}")
+    print(f"Macro F1: {np.mean(macro_f1s):.4f} ± {np.std(macro_f1s):.4f}")
+    print(f"Balanced Accuracy: {np.mean(bal_accs):.4f} ± {np.std(bal_accs):.4f}")
+
+    print("\nClassification report from all folds:")
+    print(classification_report(
+        y_true_all,
+        y_pred_all,
+        target_names=label_encoder.classes_,
+        zero_division=0
+    ))
+
+    cm = confusion_matrix(
+        y_true_all,
+        y_pred_all,
+        labels=np.arange(len(label_encoder.classes_))
+    )
+
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=label_encoder.classes_,
+        yticklabels=label_encoder.classes_
+    )
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title(f"{model_name} - {group_name}")
+    plt.tight_layout()
+
+
+    model_out_dir = OUT_DIR / model_name
+    model_out_dir.mkdir(exist_ok=True)
+    cm_path = model_out_dir / f"confusion_matrix_{group_name}.png"
+
+    plt.savefig(cm_path, dpi=300)
+    plt.close()
+
+    if len(importance_list) > 0:
+        importance_df = pd.DataFrame({
+            "feature": feature_cols,
+            "importance_mean": np.mean(importance_list, axis=0),
+            "importance_std": np.std(importance_list, axis=0)
+        }).sort_values("importance_mean", ascending=False)
+
+        importance_path = model_out_dir / f"feature_importance_{group_name}.csv"
+        importance_df.to_csv(importance_path, index=False, encoding="utf-8-sig")
+
+    return {
+        "model": model_name,
+        "feature_group": group_name,
+        "n_samples": len(data),
+        "n_features": len(feature_cols),
+
+        "accuracy_mean": np.mean(accs),
+        "accuracy_std": np.std(accs),
+
+        "macro_f1_mean": np.mean(macro_f1s),
+        "macro_f1_std": np.std(macro_f1s),
+
+        "balanced_accuracy_mean": np.mean(bal_accs),
+        "balanced_accuracy_std": np.std(bal_accs),
+    }
+
+results = []
+
+for model_name, model in models.items():
+    for group_name, feature_cols in feature_groups.items():
+        if len(feature_cols) == 0:
+            continue
+
+        result = evaluate_group(model_name, model, group_name, feature_cols)
+        results.append(result)
+
+results_df = pd.DataFrame(results)
+results_path = OUT_DIR / "ml_group_comparison_results.csv"
+results_df.to_csv(results_path, index=False, encoding="utf-8-sig")
+
+for model_name in results_df["model"].unique():
+    model_df = results_df[results_df["model"] == model_name].copy()
+    model_path = OUT_DIR / model_name / "group_comparison_results.csv"
+    model_df.to_csv(model_path, index=False, encoding="utf-8-sig")
+
+print("\nSaved group comparison:", results_path)
+print(results_df.sort_values("macro_f1_mean", ascending=False))
