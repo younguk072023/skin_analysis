@@ -8,7 +8,7 @@ from scipy.stats import wasserstein_distance
 ROOT = Path(r"C:\Users\park_younguk\Desktop\skin")
 CLASSES = ["mild", "moderate", "severe", "very severe"]
 
-LESION_IS_BLACK = True  
+LESION_IS_BLACK = True  #마스크의 검은색 병변인 경우
 
 def read_rgb(path):
     img = cv2.imread(str(path))
@@ -52,8 +52,8 @@ def analyze_one_image(img_path, mask_path, severity):   #원본 이미지, 라�
 
     background_mask = ~lesion_mask
 
-    lesion_area = int(np.sum(lesion_mask))
-    background_area = int(np.sum(background_mask))
+    lesion_area = int(np.sum(lesion_mask)) 
+    background_area = int(np.sum(background_mask))  
     total_area = h * w
 
     if lesion_area == 0 or background_area == 0:
@@ -66,7 +66,7 @@ def analyze_one_image(img_path, mask_path, severity):   #원본 이미지, 라�
         "severity": severity,
         "lesion_area_px": lesion_area,
         "background_area_px": background_area,
-        "lesion_area_ratio": lesion_area / total_area,
+        "lesion_area_ratio": lesion_area / total_area,  #전체 대비 병변 비율
     }
 
     for name, arr in {
@@ -75,8 +75,8 @@ def analyze_one_image(img_path, mask_path, severity):   #원본 이미지, 라�
         "b": b,
         "ITA": ita,
     }.items():
-        lesion_values = arr[lesion_mask]
-        bg_values = arr[background_mask]
+        lesion_values = arr[lesion_mask]    #병변에 해당하는 픽셀값들만 1차원 리스트로 추출
+        bg_values = arr[background_mask]    #배경에 해당하는 픽셀값들만 1차원 리스트로 추출
 
         lesion_mean, lesion_std, lesion_median = summarize_region(lesion_values)
         bg_mean, bg_std, bg_median = summarize_region(bg_values)
@@ -89,8 +89,9 @@ def analyze_one_image(img_path, mask_path, severity):   #원본 이미지, 라�
         #ITA 배경 순수 값
         features[f"bg_{name}_mean"] = bg_mean
         features[f"bg_{name}_std"] = bg_std
-        features[f"bg_{name}_median"] = bg_median
+        features[f"bg_{name}_median"] = bg_median   
 
+        #단순 차이
         features[f"delta_{name}_mean"] = lesion_mean - bg_mean
         features[f"abs_delta_{name}_mean"] = abs(lesion_mean - bg_mean)
 

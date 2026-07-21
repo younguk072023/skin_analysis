@@ -75,7 +75,8 @@ def get_models(random_state=42):
             ("clf", XGBClassifier(
                 n_estimators=500,
                 random_state=random_state,
-                eval_metric="logloss" 
+                objective="multi:softprob", # 다중 분류인 경우 명시
+                eval_metric="mlogloss"     # 다중 분류용 평가지표
             ))
         ])
 
