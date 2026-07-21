@@ -222,3 +222,68 @@ for model_name in results_df["model"].unique():
 
 print("\nSaved group comparison:", results_path)
 print(results_df.sort_values("macro_f1_mean", ascending=False))
+
+# ==============================================================================
+# 특징 그룹(Feature Group) 중심 피처-모델 비교 분석 및 저장
+# ==============================================================================
+print("\n" + "=" * 60)
+print("특징 그룹(Feature Group) 중심 결과 재정리 중...")
+
+# 1. Feature Group을 기준으로 Pivot Table 생성 (Macro F1-score 기준)
+pivot_f1_mean = results_df.pivot(
+    index="feature_group", 
+    columns="model", 
+    values="macro_f1_mean"
+)
+pivot_f1_std = results_df.pivot(
+    index="feature_group", 
+    columns="model", 
+    values="macro_f1_std"
+)
+
+# 2. Accuracy 기준 Pivot Table도 생성
+pivot_acc_mean = results_df.pivot(
+    index="feature_group", 
+    columns="model", 
+    values="accuracy_mean"
+)
+
+# 3. 평균 ± 표준편차 형태의 가독성 좋은 종합 비교 표 생성 (예: 0.8524 ± 0.0120)
+formatted_summary = pd.DataFrame(index=pivot_f1_mean.index)
+
+for col in pivot_f1_mean.columns:
+    formatted_summary[f"{col} (F1)"] = (
+        pivot_f1_mean[col].map("{:.4f}".format) + " ± " + pivot_f1_std[col].map("{:.4f}".format)
+    )
+
+# 최고 성능 모델 및 해당 점수 열 추가
+formatted_summary["Best_Model"] = pivot_f1_mean.idxmax(axis=1)
+formatted_summary["Best_Macro_F1"] = pivot_f1_mean.max(axis=1).map("{:.4f}".format)
+
+# 4. CSV 파일로 저장
+feature_centric_path = OUT_DIR / "feature_centric_model_comparison.csv"
+formatted_summary.to_csv(feature_centric_path, encoding="utf-8-sig")
+print("Saved feature-centric comparison table:", feature_centric_path)
+
+# 5. 특징 그룹 중심 성능 비교 히트맵(Heatmap) 시각화 저장
+plt.figure(figsize=(10, 6))
+sns.heatmap(
+    pivot_f1_mean, 
+    annot=True, 
+    fmt=".4f", 
+    cmap="YlGnBu", 
+    cbar_kws={'label': 'Mean Macro F1-score'}
+)
+plt.title("Macro F1-score by Feature Group & Model", fontsize=14, pad=15)
+plt.xlabel("Model", fontsize=12)
+plt.ylabel("Feature Group", fontsize=12)
+plt.tight_layout()
+
+heatmap_path = OUT_DIR / "feature_centric_f1_heatmap.png"
+plt.savefig(heatmap_path, dpi=300)
+plt.close()
+print("Saved feature-centric heatmap:", heatmap_path)
+
+# 콘솔에 출력해서 바로 확인하기
+print("\n[ 특징 그룹별 최고 성능 모델 요약 ]")
+print(formatted_summary[["Best_Model", "Best_Macro_F1"]])

@@ -33,9 +33,16 @@ df["severity_num"] = df["severity"].map(severity_map)
 print("Total images:", len(df))
 print(df["severity"].value_counts().reindex(severity_order))
 
-
+'''
+lesion: 병변 자체의 색상
+bg: 병변 제외 배경의 색상
+delta: 병변과 배경의 단순 차이
+abs: 병변과 배경의 절대 차이
+wass: 병변가 배경이 색상 히스토그램 분포 거리
+'''
 #  feature
 features = [
+    
     "lesion_L_mean",
     "lesion_a_mean",
     "lesion_b_mean",
@@ -94,7 +101,7 @@ for feat in features:
 
 kruskal_df = pd.DataFrame(kruskal_rows)
 
-# 다중검정 보정
+# 다중검정 보정 FDR
 valid_p = kruskal_df["p_value"].notna()
 kruskal_df.loc[valid_p, "p_fdr"] = multipletests(
     kruskal_df.loc[valid_p, "p_value"],
