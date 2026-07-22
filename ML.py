@@ -17,7 +17,8 @@ from sklearn.metrics import (
 )
 from models.model_zoo import get_models
 from sklearn.base import clone
-from features.feature_groups import feature_groups
+#from features.feature_groups import feature_groups
+from features.feautre_groups_b_only import feature_groups
 
 ROOT = Path(r"C:\Users\park_younguk\Desktop\skin")
 CSV_PATH = ROOT / "lesion_background_ita_lab_features.csv"
