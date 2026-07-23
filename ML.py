@@ -224,13 +224,11 @@ for model_name in results_df["model"].unique():
 print("\nSaved group comparison:", results_path)
 print(results_df.sort_values("macro_f1_mean", ascending=False))
 
-# ==============================================================================
 # 특징 그룹(Feature Group) 중심 피처-모델 비교 분석 및 저장
-# ==============================================================================
 print("\n" + "=" * 60)
 print("특징 그룹(Feature Group) 중심 결과 재정리 중...")
 
-# 1. Feature Group을 기준으로 Pivot Table 생성 (Macro F1-score 기준)
+# Feature Group을 기준으로 Pivot Table 생성 (Macro F1-score 기준)
 pivot_f1_mean = results_df.pivot(
     index="feature_group", 
     columns="model", 
@@ -249,7 +247,7 @@ pivot_acc_mean = results_df.pivot(
     values="accuracy_mean"
 )
 
-# 3. 평균 ± 표준편차 형태의 가독성 좋은 종합 비교 표 생성 (예: 0.8524 ± 0.0120)
+# 평균 ± 표준편차 형태의 가독성 좋은 종합 비교 표 생성 (예: 0.8524 ± 0.0120)
 formatted_summary = pd.DataFrame(index=pivot_f1_mean.index)
 
 for col in pivot_f1_mean.columns:
@@ -266,7 +264,7 @@ feature_centric_path = OUT_DIR / "feature_centric_model_comparison.csv"
 formatted_summary.to_csv(feature_centric_path, encoding="utf-8-sig")
 print("Saved feature-centric comparison table:", feature_centric_path)
 
-# 5. 특징 그룹 중심 성능 비교 히트맵(Heatmap) 시각화 저장
+# 특징 그룹 중심 성능 비교 히트맵(Heatmap) 시각화 저장
 plt.figure(figsize=(10, 6))
 sns.heatmap(
     pivot_f1_mean, 
