@@ -19,20 +19,6 @@ def get_models(random_state=42):
             ))
         ]),
 
-        "KNN": Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", KNeighborsClassifier(n_neighbors=5))
-        ]),
-
-        "SVM": Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", SVC(
-                kernel="linear",
-                class_weight="balanced",
-                random_state=random_state
-            ))
-        ]),
-
         "SVM_RBF": Pipeline([
             ("scaler", StandardScaler()),
             ("clf", SVC(
@@ -50,23 +36,6 @@ def get_models(random_state=42):
             class_weight="balanced",
             max_depth=None,
             min_samples_leaf=2
-            ))
-        ]),
-
-        "ExtraTrees": Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", ExtraTreesClassifier(
-            n_estimators=500,
-            random_state=random_state,
-            class_weight="balanced",
-            min_samples_leaf=2
-            ))
-        ]),
-
-        "GradientBoosting": Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", GradientBoostingClassifier(
-                random_state=random_state
             ))
         ]),
 
