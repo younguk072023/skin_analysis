@@ -259,7 +259,7 @@ for col in pivot_f1_mean.columns:
 formatted_summary["Best_Model"] = pivot_f1_mean.idxmax(axis=1)
 formatted_summary["Best_Macro_F1"] = pivot_f1_mean.max(axis=1).map("{:.4f}".format)
 
-# 4. CSV 파일로 저장
+# CSV 파일로 저장
 feature_centric_path = OUT_DIR / "feature_centric_model_comparison.csv"
 formatted_summary.to_csv(feature_centric_path, encoding="utf-8-sig")
 print("Saved feature-centric comparison table:", feature_centric_path)
