@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import datetime
+import logging
 
 import pandas as pd
 import numpy as np
@@ -19,12 +21,12 @@ from statsmodels.stats.multitest import multipletests
 # ============================================================
 
 ROOT = Path(
-    r"C:\Users\park_younguk\Desktop\skin"
+    r"E:\gan_analysis_001612"
 )
 
 CSV_PATH = (
     ROOT
-    / "lesion_background_color_texture_features.csv"
+    / "gan_lesion_background_color_texture_features.csv"
 )
 
 OUT_DIR = (
@@ -33,6 +35,7 @@ OUT_DIR = (
 )
 
 OUT_DIR.mkdir(
+    parents=True,
     exist_ok=True
 )
 
@@ -56,6 +59,11 @@ TEXTURE_PLOT_DIR = (
     / "texture"
 )
 
+LOG_DIR = (
+    OUT_DIR
+    / "logs"
+)
+
 
 COLOR_PLOT_DIR.mkdir(
     parents=True,
@@ -67,25 +75,167 @@ TEXTURE_PLOT_DIR.mkdir(
     exist_ok=True
 )
 
+LOG_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
 
 # ============================================================
-# 3. 데이터 로드
+# 3. Logging 설정
+#
+# 실행할 때마다 새로운 log 파일 생성
+#
+# 예:
+# analysis_20260819_214300.log
 # ============================================================
+
+RUN_TIME = datetime.now().strftime(
+    "%Y%m%d_%H%M%S"
+)
+
+LOG_PATH = (
+    LOG_DIR
+    / f"analysis_{RUN_TIME}.log"
+)
+
+
+logger = logging.getLogger(
+    "color_texture_analysis"
+)
+
+logger.setLevel(
+    logging.INFO
+)
+
+logger.propagate = False
+
+
+# ------------------------------------------------------------
+# 이전 handler가 존재하는 경우 제거
+# ------------------------------------------------------------
+
+if logger.handlers:
+
+    logger.handlers.clear()
+
+
+# ------------------------------------------------------------
+# Log 출력 형식
+# ------------------------------------------------------------
+
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(message)s"
+)
+
+
+# ------------------------------------------------------------
+# 파일 저장 handler
+# ------------------------------------------------------------
+
+file_handler = logging.FileHandler(
+    LOG_PATH,
+    mode="w",
+    encoding="utf-8"
+)
+
+file_handler.setLevel(
+    logging.INFO
+)
+
+file_handler.setFormatter(
+    formatter
+)
+
+
+# ------------------------------------------------------------
+# Console 출력 handler
+# ------------------------------------------------------------
+
+console_handler = logging.StreamHandler()
+
+console_handler.setLevel(
+    logging.INFO
+)
+
+console_handler.setFormatter(
+    formatter
+)
+
+
+logger.addHandler(
+    file_handler
+)
+
+logger.addHandler(
+    console_handler
+)
+
+
+# ------------------------------------------------------------
+# Python warning도 logging에 연결
+# ------------------------------------------------------------
+
+logging.captureWarnings(
+    True
+)
+
+
+# ============================================================
+# 분석 시작
+# ============================================================
+
+logger.info(
+    "=" * 70
+)
+
+logger.info(
+    "GAN Color + Texture Statistical Analysis Started"
+)
+
+logger.info(
+    "=" * 70
+)
+
+logger.info(
+    f"Input CSV       : {CSV_PATH}"
+)
+
+logger.info(
+    f"Output directory: {OUT_DIR}"
+)
+
+logger.info(
+    f"Log file        : {LOG_PATH}"
+)
+
+
+# ============================================================
+# 4. 데이터 로드
+# ============================================================
+
+logger.info(
+    "Loading CSV..."
+)
 
 df = pd.read_csv(
     CSV_PATH
 )
 
+logger.info(
+    "CSV loaded successfully."
+)
+
 
 # ============================================================
-# 4. Severity 설정
+# 5. Severity 설정
 # ============================================================
 
 severity_order = [
     "mild",
     "moderate",
     "severe",
-    "very severe",
+    "very_severe",
 ]
 
 
@@ -93,7 +243,7 @@ severity_map = {
     "mild": 0,
     "moderate": 1,
     "severe": 2,
-    "very severe": 3,
+    "very_severe": 3,
 }
 
 
@@ -115,22 +265,34 @@ df["severity_num"] = (
 # 데이터 기본 정보 출력
 # ============================================================
 
-print(
-    "Total images:",
-    len(df)
+logger.info(
+    f"Total images: {len(df)}"
 )
 
-print()
 
-print(
+severity_counts = (
     df["severity"]
     .value_counts()
-    .reindex(severity_order)
+    .reindex(
+        severity_order
+    )
 )
+
+
+logger.info(
+    "Severity distribution:"
+)
+
+
+for severity, count in severity_counts.items():
+
+    logger.info(
+        f"  {severity:<12}: {count}"
+    )
 
 
 # ============================================================
-# 5. Color Features
+# 6. Color Features
 #
 # lesion:
 #   병변 자체 색상
@@ -205,7 +367,7 @@ COLOR_FEATURES = [
 
 
 # ============================================================
-# 6. Texture Features
+# 7. Texture Features
 #
 # Texture:
 #   RGB → Grayscale
@@ -271,8 +433,17 @@ TEXTURE_FEATURES = [
 
 
 # ============================================================
-# 7. 실제 CSV에 존재하는 Feature만 사용
+# 8. 실제 CSV에 존재하는 Feature만 사용
 # ============================================================
+
+original_color_features = (
+    COLOR_FEATURES.copy()
+)
+
+original_texture_features = (
+    TEXTURE_FEATURES.copy()
+)
+
 
 COLOR_FEATURES = [
     feature
@@ -295,28 +466,52 @@ features = (
 
 
 # ============================================================
+# 누락 Feature 확인
+# ============================================================
+
+missing_color_features = [
+
+    feature
+    for feature in original_color_features
+
+    if feature
+    not in df.columns
+]
+
+
+missing_texture_features = [
+
+    feature
+    for feature in original_texture_features
+
+    if feature
+    not in df.columns
+]
+
+
+# ============================================================
 # Feature 개수 확인
 # ============================================================
 
-print()
-print("=" * 60)
-
-print(
-    "Color features   :",
-    len(COLOR_FEATURES)
+logger.info(
+    "=" * 70
 )
 
-print(
-    "Texture features :",
-    len(TEXTURE_FEATURES)
+logger.info(
+    f"Color features   : {len(COLOR_FEATURES)}"
 )
 
-print(
-    "Total features   :",
-    len(features)
+logger.info(
+    f"Texture features : {len(TEXTURE_FEATURES)}"
 )
 
-print("=" * 60)
+logger.info(
+    f"Total features   : {len(features)}"
+)
+
+logger.info(
+    "=" * 70
+)
 
 
 # ============================================================
@@ -329,33 +524,56 @@ print("=" * 60)
 
 if len(COLOR_FEATURES) != 20:
 
-    print(
-        f"[WARNING] "
+    logger.warning(
         f"Expected 20 color features, "
         f"found {len(COLOR_FEATURES)}"
     )
 
 
+if missing_color_features:
+
+    logger.warning(
+        "Missing color features:"
+    )
+
+    for feature in missing_color_features:
+
+        logger.warning(
+            f"  {feature}"
+        )
+
+
 if len(TEXTURE_FEATURES) != 18:
 
-    print(
-        f"[WARNING] "
+    logger.warning(
         f"Expected 18 texture features, "
         f"found {len(TEXTURE_FEATURES)}"
     )
 
 
+if missing_texture_features:
+
+    logger.warning(
+        "Missing texture features:"
+    )
+
+    for feature in missing_texture_features:
+
+        logger.warning(
+            f"  {feature}"
+        )
+
+
 if len(features) != 38:
 
-    print(
-        f"[WARNING] "
+    logger.warning(
         f"Expected 38 total features, "
         f"found {len(features)}"
     )
 
 
 # ============================================================
-# 8. Feature type
+# 9. Feature type
 #
 # 결과 CSV에서
 # Color / Texture 구분용
@@ -376,18 +594,23 @@ feature_type_map = {
 
 
 # ============================================================
-# 9. 중증도별 요약 통계
+# 10. 중증도별 요약 통계
 #
 # count:
 # 해당 feature 분석에 실제 사용 가능한 표본 수
 #
 # 예:
 # lesion feature
-# → mo_184 포함 가능
+# → 결측값이 없다면 전체 사용 가능
 #
 # background-dependent feature
-# → mo_184는 NaN이므로 count에서 제외
+# → NaN이 있으면 해당 표본 제외
 # ============================================================
+
+logger.info(
+    "Calculating summary statistics..."
+)
+
 
 summary = (
     df
@@ -418,14 +641,13 @@ summary.to_csv(
 )
 
 
-print(
-    "Saved:",
-    summary_path
+logger.info(
+    f"Saved summary statistics: {summary_path}"
 )
 
 
 # ============================================================
-# 10. Kruskal-Wallis
+# 11. Kruskal-Wallis
 #
 # H0:
 # 네 중증도 그룹의 분포가 동일하다.
@@ -435,6 +657,11 @@ print(
 #
 # NaN은 각 feature별로 제외한다.
 # ============================================================
+
+logger.info(
+    "Running Kruskal-Wallis tests..."
+)
+
 
 kruskal_rows = []
 
@@ -554,7 +781,10 @@ kruskal_df[
 )
 
 
+# ------------------------------------------------------------
 # FDR p-value가 작은 순으로 정렬
+# ------------------------------------------------------------
+
 kruskal_df = (
     kruskal_df
     .sort_values(
@@ -580,14 +810,25 @@ kruskal_df.to_csv(
 )
 
 
-print(
-    "Saved:",
-    kruskal_path
+kruskal_sig_count = int(
+    kruskal_df[
+        "significant_fdr"
+    ].sum()
+)
+
+
+logger.info(
+    f"Saved Kruskal results: {kruskal_path}"
+)
+
+logger.info(
+    f"Kruskal significant features "
+    f"(FDR < 0.05): {kruskal_sig_count}/{len(features)}"
 )
 
 
 # ============================================================
-# 11. Spearman correlation
+# 12. Spearman correlation
 #
 # Severity:
 # mild          = 0
@@ -603,6 +844,11 @@ print(
 #
 # NaN은 해당 feature 분석에서만 제외
 # ============================================================
+
+logger.info(
+    "Running Spearman correlation tests..."
+)
+
 
 spearman_rows = []
 
@@ -742,14 +988,108 @@ spearman_df.to_csv(
 )
 
 
-print(
-    "Saved:",
-    spearman_path
+spearman_sig_count = int(
+    spearman_df[
+        "significant_fdr"
+    ].sum()
+)
+
+
+logger.info(
+    f"Saved Spearman results: {spearman_path}"
+)
+
+logger.info(
+    f"Spearman significant features "
+    f"(FDR < 0.05): {spearman_sig_count}/{len(features)}"
 )
 
 
 # ============================================================
-# 12. Pairwise Mann-Whitney U test
+# Spearman 방향별 개수
+# ============================================================
+
+positive_sig = (
+
+    (
+        spearman_df[
+            "significant_fdr"
+        ]
+    )
+
+    &
+
+    (
+        spearman_df[
+            "spearman_rho"
+        ] > 0
+    )
+
+).sum()
+
+
+negative_sig = (
+
+    (
+        spearman_df[
+            "significant_fdr"
+        ]
+    )
+
+    &
+
+    (
+        spearman_df[
+            "spearman_rho"
+        ] < 0
+    )
+
+).sum()
+
+
+logger.info(
+    f"Significant positive correlations: "
+    f"{int(positive_sig)}"
+)
+
+logger.info(
+    f"Significant negative correlations: "
+    f"{int(negative_sig)}"
+)
+
+
+# ============================================================
+# Spearman 상위 Feature 로그
+# ============================================================
+
+logger.info(
+    "Top Spearman features by |rho|:"
+)
+
+
+top_spearman = (
+    spearman_df
+    .dropna(
+        subset=[
+            "spearman_rho"
+        ]
+    )
+    .head(10)
+)
+
+
+for _, row in top_spearman.iterrows():
+
+    logger.info(
+        f"  "
+        f"{row['feature']:<32} "
+        f"rho={row['spearman_rho']:.4f}, "
+        f"p_fdr={row['p_fdr']:.6g}"
+    )
+
+
+# ============================================================
+# 13. Pairwise Mann-Whitney U test
 #
 # 각 severity 쌍의 차이 확인
 #
@@ -762,6 +1102,11 @@ print(
 #
 # NaN은 해당 feature 비교에서만 제외
 # ============================================================
+
+logger.info(
+    "Running pairwise Mann-Whitney U tests..."
+)
+
 
 pairwise_rows = []
 
@@ -867,7 +1212,7 @@ pairwise_df = pd.DataFrame(
 # ============================================================
 # Pairwise FDR correction
 #
-# 현재는 모든 pairwise test를
+# 모든 pairwise test를
 # 하나의 multiple-testing family로 보고
 # BH-FDR correction 적용
 # ============================================================
@@ -907,6 +1252,25 @@ pairwise_df[
 )
 
 
+# ------------------------------------------------------------
+# 보기 좋게 feature / p_fdr 기준 정렬
+# ------------------------------------------------------------
+
+pairwise_df = (
+    pairwise_df
+    .sort_values(
+        [
+            "feature",
+            "p_fdr",
+        ],
+        na_position="last"
+    )
+    .reset_index(
+        drop=True
+    )
+)
+
+
 pairwise_path = (
     OUT_DIR
     / "pairwise_mannwhitney_results.csv"
@@ -920,20 +1284,54 @@ pairwise_df.to_csv(
 )
 
 
-print(
-    "Saved:",
-    pairwise_path
+pairwise_sig_count = int(
+    pairwise_df[
+        "significant_fdr"
+    ].sum()
+)
+
+
+logger.info(
+    f"Saved pairwise Mann-Whitney results: "
+    f"{pairwise_path}"
+)
+
+logger.info(
+    f"Significant pairwise comparisons "
+    f"(FDR < 0.05): "
+    f"{pairwise_sig_count}/{len(pairwise_df)}"
 )
 
 
 # ============================================================
-# 13. Boxplot
+# 14. Boxplot
 #
 # Color / Texture 폴더를 분리해서 저장한다.
 #
 # seaborn은 해당 feature의 NaN을
 # 자동으로 제외하고 그림을 생성한다.
 # ============================================================
+
+logger.info(
+    "Generating boxplots..."
+)
+
+
+severity_palette = {
+
+    "mild":
+        "#D9EAF7",
+
+    "moderate":
+        "#9ECAE1",
+
+    "severe":
+        "#4292C6",
+
+    "very_severe":
+        "#084594",
+}
+
 
 for feat in features:
 
@@ -962,83 +1360,143 @@ for feat in features:
         figsize=(7, 5)
     )
 
-    severity_palette = {
-    "mild": "#D9EAF7",
-    "moderate": "#9ECAE1",
-    "severe": "#4292C6",
-    "very severe": "#084594",
-}
-
-for feat in features:
-
-    if feat in COLOR_FEATURES:
-        plot_dir = COLOR_PLOT_DIR
-    else:
-        plot_dir = TEXTURE_PLOT_DIR
-
-    plt.figure(figsize=(7, 5))
 
     sns.boxplot(
         data=df,
         x="severity",
         y=feat,
         order=severity_order,
+        hue="severity",
         palette=severity_palette,
-        showfliers=True,   # 이상치만 점으로 표시
+        legend=False,
+        showfliers=True,
         width=0.6,
         linewidth=1.5
     )
 
-    #plt.title(feat)
-    plt.xlabel("Severity")
-    plt.ylabel(feat)
+
+    plt.xlabel(
+        "Severity"
+    )
+
+    plt.ylabel(
+        feat
+    )
+
     plt.tight_layout()
 
-    out_path = plot_dir / f"boxplot_{feat}.png"
-    plt.savefig(out_path, dpi=300)
+
+    out_path = (
+        plot_dir
+        / f"boxplot_{feat}.png"
+    )
+
+
+    plt.savefig(
+        out_path,
+        dpi=300,
+        bbox_inches="tight"
+    )
+
     plt.close()
 
 
-print(
-    "Boxplots saved."
+logger.info(
+    f"Boxplots saved: {len(features)}"
+)
+
+logger.info(
+    f"Color boxplots   : {COLOR_PLOT_DIR}"
+)
+
+logger.info(
+    f"Texture boxplots : {TEXTURE_PLOT_DIR}"
 )
 
 
 # ============================================================
-# 14. 분석 종료
+# 15. 분석 종료
 # ============================================================
 
-print()
-print("=" * 60)
-print("Statistical analysis completed")
-print("=" * 60)
+logger.info(
+    "=" * 70
+)
+
+logger.info(
+    "Statistical analysis completed"
+)
+
+logger.info(
+    "=" * 70
+)
 
 
-print(
+logger.info(
     f"Total images              : "
     f"{len(df)}"
 )
 
 
-print(
+logger.info(
     f"Color features analyzed   : "
     f"{len(COLOR_FEATURES)}"
 )
 
 
-print(
+logger.info(
     f"Texture features analyzed : "
     f"{len(TEXTURE_FEATURES)}"
 )
 
 
-print(
+logger.info(
     f"Total features analyzed   : "
     f"{len(features)}"
 )
 
 
-print(
+logger.info(
+    f"Kruskal significant       : "
+    f"{kruskal_sig_count}"
+)
+
+
+logger.info(
+    f"Spearman significant      : "
+    f"{spearman_sig_count}"
+)
+
+
+logger.info(
+    f"  Positive rho            : "
+    f"{int(positive_sig)}"
+)
+
+
+logger.info(
+    f"  Negative rho            : "
+    f"{int(negative_sig)}"
+)
+
+
+logger.info(
+    f"Pairwise significant      : "
+    f"{pairwise_sig_count}"
+)
+
+
+logger.info(
     f"Output directory          : "
     f"{OUT_DIR}"
+)
+
+
+logger.info(
+    f"Log file                  : "
+    f"{LOG_PATH}"
+)
+
+
+logger.info(
+    "=" * 70
 )

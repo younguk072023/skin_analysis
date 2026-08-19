@@ -15,13 +15,13 @@ from skimage.feature import graycoprops, local_binary_pattern
 # 설정
 # ============================================================
 
-ROOT = Path(r"C:\Users\park_younguk\Desktop\skin")
+ROOT = Path(r"E:\gan_analysis_001612")
 
 CLASSES = [
     "mild",
     "moderate",
     "severe",
-    "very severe",
+    "very_severe",
 ]
 
 # True  : mask의 검은색 영역 = lesion
@@ -1250,7 +1250,7 @@ def main():
 
     output_path = (
         ROOT
-        / "lesion_background_color_texture_features.csv"
+        / "gan_lesion_background_color_texture_features.csv"
     )
 
 
